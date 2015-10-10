@@ -1078,10 +1078,10 @@ stock SL::RowExists(const table[], const column[], columnID[], DB:database = DB:
 stock SL::CountTables(DB:database = DB:1)
 {
 	new DBResult:result;
-	result = db_query(DB:database, "SHOW TABLES");
-	new rows = db_num_rows(result);
+	result = db_query(DB:database, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence'");
+	new tables = db_get_field_int(result);
 	db_free_result(result);
-	return rows;
+	return tables;
 }
 
 #undef SL_INVALID_HANDLE
