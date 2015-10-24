@@ -63,6 +63,10 @@
 	SL::WriteInt(handle, const field[], Float:value);
 	SL::WriteString(handle, const field[], const value[]);
 	
+	Added:
+	
+	SL::Begin(DB:database = DB:1)
+	SL::Commit(DB:database = DB:1)
 	
 	This include is mainly for people without experience with sqlite as it simplifies its usage.
 */
@@ -100,7 +104,7 @@
 #define SL_Notice(%0)				(printf("[SQLITE] - NOTICE: " %0))
 
 enum SL::datatypes {SL_TYPE_INT, SL_TYPE_VCHAR, SL_TYPE_FLOAT} 
-enum SL::qtypes {SL::UPDATE, SL::CREATE, SL::INSERT, SL_TYPE_DELETE, SL::READ}
+enum SL::qtypes {SL::UPDATE, SL::CREATE, SL::INSERT, SL::MINSERT, SL_TYPE_DELETE, SL::READ}
 
 static stock
 	bool:SL::UsedHandle[SL_MAX_HANDLES],
@@ -141,7 +145,6 @@ stock DB:SL::Connect(database[])
 	if((db = db_open(database)) == DB:0)
 	{
 		SL_Warning("Could not connect to database %s", database);
-		return DB:0;
 	
 	}
 	else
@@ -179,6 +182,16 @@ stock SL::Open(SL::qtypes:type, const table[], const column[] = "", columnID = -
 		}
 	}
 	return handle;
+}
+stock SL::Begin(DB:database = DB:1)
+{
+	db_free_result(db_query(DB:database, "BEGIN"));
+	return 1;
+}
+stock SL::Commit(DB:database = DB:1)
+{
+	db_free_result(db_query(DB:database, "COMMIT"));
+	return 1;
 }
 stock SL::OpenEx(SL::qtypes:type, const table[], const column[] = "", columnID[] = "", DB:database = DB:1)
 {
@@ -462,7 +475,7 @@ stock SL::AddTableEntry(handle, const field[], SL::datatypes: type = SL_TYPE_INT
 	}
 	return 1;
 }
-stock SL::OpenTable_Read(const table[], const column[], columnID, DB:database = DB:1)
+stock SL::OpenTable_Read(const table[], const column[], columnID = -1, DB:database = DB:1)
 {
 	if(DB:database == DB:0)
 	{
@@ -474,11 +487,6 @@ stock SL::OpenTable_Read(const table[], const column[], columnID, DB:database = 
 		SL_Error("(SL::OpenTable) Invalid table length.");
 		return SL_INVALID_HANDLE;
 	} 
-	if(column[0] == '\0')
-	{
-		SL_Error("(SL::OpenTable) No format has been entered. Format example: (pID)");
-		return SL_INVALID_HANDLE;
-	}
 	new 
 		i = SL::GetFreeUpdatingSlot()
 	;
@@ -488,7 +496,16 @@ stock SL::OpenTable_Read(const table[], const column[], columnID, DB:database = 
 	}
 	SL::upd_type[i] = SL::READ;
 	SL::database[i] = DB:database;
-	format(SL::upd_form, sizeof(SL::upd_form), "SELECT * FROM `%s` WHERE `%s` = '%d' ", table, column, columnID);
+	if(column[0] == '\0' && columnID -1)
+	{
+		format(SL::upd_form, sizeof(SL::upd_form), "SELECT * FROM `%s`", table);
+		SL::ReadCache[i] = db_query(DB:database, SL::upd_form);
+	}
+	else
+	{
+		format(SL::upd_form, sizeof(SL::upd_form), "SELECT * FROM `%s` WHERE `%s` = '%d' ", table, column, columnID);
+		SL::ReadCache[i] = db_query(DB:database, SL::upd_form);
+	}
 	SL::ReadCache[i] = db_query(DB:database, SL::upd_form);
 	SL::upd_datacount[i] = 0;
 	if((SL::ReadCache[i]))
@@ -776,7 +793,6 @@ stock SL::Close(handle)
 		new pos = strlen(SL::upd_query[handle])-1;
 		SL::upd_query[handle][pos] = ' ';
 		strcat(SL::upd_query[handle], ");");
-		printf("%s", SL::upd_query[handle]);
 		db_free_result(db_query(SL::database[handle], SL::upd_query[handle]));
 		SL::upd_table[handle][0] = '\0';
 		SL::database[handle] = DB:0;
@@ -825,6 +841,7 @@ stock SL::Close(handle)
 		SL::database[handle] = DB:0;
 		SL::upd_query[handle][0] = '\0';
 		SL::upd_table[handle][0] = '\0';
+		SL::UsedHandle[handle] = false;
 		
 	}
 	else if(SL::upd_type[handle] == SL::READ)
@@ -932,6 +949,7 @@ stock SL::SetFloatEntryEx(const table[], const field[], Float:value, const colum
 	db_free_result(db_query(DB:database, SL::upd_form));
 	return 1;
 }
+
 stock SL::OpenTable_Insert(const table[], bool:use_autoincrement = false, DB:database = DB:1)
 {
 	if(!DB:database)
