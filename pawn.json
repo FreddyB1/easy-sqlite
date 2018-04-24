@@ -1,5 +1,7 @@
 {
-  "user": "ThreeKings",
+  "user": "ThreeKingz",
   "repo": "easy-sqlite",
+  "entry": "example.pwn",
+  "output": "example.amx",
   "dependencies": ["sampctl/samp-stdlib"]
 }
